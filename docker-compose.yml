@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: oficina_db_container
+    restart: always
+    environment:
+      MYSQL_DATABASE: ${DB_NAME}
+      MYSQL_ROOT_PASSWORD: ${DB_ROOT_PASSWORD}
+      MYSQL_USER: ${DB_USER}
+      MYSQL_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "${DB_PORT}:3306"
+    volumes:
+      # Mantém os dados salvos no seu computador de forma persistente
+      - mysql_data:/var/lib/mysql
+      # Executa automaticamente o script init.sql ao subir o container pela primeira vez
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - oficina_net
+
+volumes:
+  mysql_data:
+
+networks:
+  oficina_net:
+    driver: bridge

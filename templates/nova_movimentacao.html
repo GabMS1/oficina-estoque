@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <title>Movimentar Estoque</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="navbar">
+        <a href="/">Visão Geral</a>
+        <a href="/nova_movimentacao">Registrar Movimentação</a>
+        <a href="/novo_produto">Cadastrar Produto</a>
+    </div>
+
+    <div class="container">
+        <h1>Registrar Entrada ou Saída</h1>
+        
+        <div class="form-container">
+            <form action="/movimentar" method="POST">
+                <div class="form-group" style="flex-direction: column; align-items: flex-start;">
+                    
+                    <label>Cód. do Produto:</label>
+                    <input type="number" name="produto_id" required style="width: 100%; margin-bottom: 10px;">
+                    
+                    <label>Tipo de Movimentação:</label>
+                    <select name="tipo" style="width: 100%; margin-bottom: 10px;">
+                        <option value="ENTRADA">Entrada (+)</option>
+                        <option value="SAIDA">Saída (-)</option>
+                    </select>
+                    
+                    <div style="display: flex; gap: 20px; width: 100%;">
+                        <div style="flex: 1;">
+                            <label>Quantidade:</label>
+                            <input type="number" name="quantidade" required style="width: 100%;">
+                        </div>
+                        <div style="flex: 1;">
+                            <label>Custo Unitário (R$):</label>
+                            <input type="number" step="0.01" name="valor_unitario" required style="width: 100%;">
+                        </div>
+                    </div>
+                    
+                    <label style="margin-top: 10px;">Motivo da Movimentação:</label>
+                    <input type="text" name="motivo" placeholder="Ex: Compra NF 123 ou Uso na Bomba Y" required style="width: 100%; margin-bottom: 20px;">
+                    
+                    <button type="submit" style="width: 100%;">Salvar Movimentação</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</body>
+</html>

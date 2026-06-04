@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <title>Estoque - Oficina Hidráulica</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="navbar">
+        <a href="/">Visão Geral</a>
+        <a href="/nova_movimentacao">Registrar Movimentação</a>
+        <a href="/novo_produto">Cadastrar Produto</a>
+    </div>
+
+    <div class="container">
+        <div class="dashboard">
+            <div class="card" style="border-left-color: #007bff;">
+                <div class="card-title">Tipos de Produtos</div>
+                <div class="card-value">{{ total_produtos }}</div>
+            </div>
+            <div class="card" style="border-left-color: #28a745;">
+                <div class="card-title">Total de Itens Físicos</div>
+                <div class="card-value">{{ total_itens }}</div>
+            </div>
+            <div class="card" style="border-left-color: #ffc107;">
+                <div class="card-title">Valor em Estoque (Custo)</div>
+                <div class="card-value">R$ {{ valor_total }}</div>
+            </div>
+        </div>
+
+        <h1>Estoque Atual</h1>
+        
+        {{ tabela_html | safe }}
+    </div>
+</body>
+</html>
