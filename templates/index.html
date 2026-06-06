@@ -28,9 +28,65 @@
             </div>
         </div>
 
-        <h1>Estoque Atual</h1>
+        <div class="category-box">
+            <h3 style="margin: 0; color: #333; text-align: center;">Resumo Financeiro por Categoria</h3>
+            <div class="category-grid">
+                {% for cat in categorias_valores %}
+                    <div class="category-badge">
+                        {{ cat.categoria }}: R$ {{ "{:,.2f}".format(cat.total_custo).replace(",", "X").replace(".", ",").replace("X", ".") }}
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+
+        <h2>Estoque Atual</h2>
+
+        <input type="text" id="inputPesquisa" class="search-box" placeholder="🔎 Pesquise por Produto, Categoria ou Marca...">
         
-        {{ tabela_html | safe }}
+        <table class="table table-striped" id="tabelaEstoque">
+            <thead>
+                <tr>
+                    <th>Cód.</th>
+                    <th>Categoria</th>
+                    <th>Marca</th>
+                    <th>Produto</th>
+                    <th>Custo (R$)</th>
+                    <th>Venda (R$)</th>
+                    <th>Qtd. Estoque</th>
+                    <th>Total Custo (R$)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in produtos %}
+                <tr>
+                    <td>{{ p.cod }}</td>
+                    <td>{{ p.categoria }}</td>
+                    <td>{{ p.marca }}</td>
+                    <td>{{ p.produto }}</td>
+                    <td>{{ "%.2f"|format(p.custo) }}</td>
+                    <td>{{ "%.2f"|format(p.venda) }}</td>
+                    <td>{{ p.qtd_estoque }}</td>
+                    <td>{{ "%.2f"|format(p.total_custo) }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
     </div>
+
+    <script>
+        document.getElementById('inputPesquisa').addEventListener('keyup', function() {
+            let busca = this.value.toLowerCase();
+            let linhas = document.querySelectorAll('#tabelaEstoque tbody tr');
+            
+            linhas.forEach(function(linha) {
+                let textoLinha = linha.textContent.toLowerCase();
+                if (textoLinha.indexOf(busca) > -1) {
+                    linha.style.display = "";
+                } else {
+                    linha.style.display = "none";
+                }
+            });
+        });
+    </script>
 </body>
 </html>

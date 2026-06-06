@@ -18,39 +18,57 @@ engine = create_engine(string_conexao)
 
 @app.route('/')
 def mostrar_estoque():
-    query = """
+    # 1. Query principal do Estoque Atual (agora preparamos as colunas sem aspas para o HTML)
+    query_estoque = """
         SELECT 
-            p.id AS 'Cód.',
-            c.nome AS 'Categoria',
-            m.nome AS 'Marca',
-            p.nome AS 'Produto',
-            p.preco_custo AS 'Custo (R$)',
-            p.preco_venda AS 'Venda (R$)',
-            COALESCE(e.quantidade_atual, 0) AS 'Qtd. Estoque',
-            (COALESCE(e.quantidade_atual, 0) * p.preco_custo) AS 'Total Custo (R$)'
+            p.id AS cod,
+            c.nome AS categoria,
+            m.nome AS marca,
+            p.nome AS produto,
+            p.preco_custo AS custo,
+            p.preco_venda AS venda,
+            COALESCE(e.quantidade_atual, 0) AS qtd_estoque,
+            (COALESCE(e.quantidade_atual, 0) * p.preco_custo) AS total_custo
         FROM produtos p
         INNER JOIN categorias c ON p.categoria_id = c.id
         INNER JOIN marcas m ON p.marca_id = m.id
         LEFT JOIN estoque_atual e ON p.id = e.produto_id;
     """
     
+    # 2. NOVA QUERY: Total financeiro agrupado por Categoria (O que o chefe pediu)
+    query_categorias = """
+        SELECT 
+            c.nome AS categoria,
+            SUM(COALESCE(e.quantidade_atual, 0) * p.preco_custo) AS total_custo
+        FROM produtos p
+        INNER JOIN categorias c ON p.categoria_id = c.id
+        LEFT JOIN estoque_atual e ON p.id = e.produto_id
+        GROUP BY c.nome;
+    """
+    
     try:
-        df_estoque = pd.read_sql(query, engine)
-        tabela_html = df_estoque.to_html(index=False, classes='table table-striped', justify='center')
-        
-        # Lógica do Dashboard
         with engine.connect() as conn:
+            # Mantemos os totais gerais para os Cards principais
             total_produtos_cadastrados = conn.execute(text("SELECT COUNT(*) FROM produtos")).scalar() or 0
             total_itens_estoque = conn.execute(text("SELECT SUM(quantidade_atual) FROM estoque_atual")).scalar() or 0
         
-        # Calcula o valor total usando o Pandas
-        valor_financeiro_total = df_estoque['Total Custo (R$)'].sum() if not df_estoque.empty else 0.0
+        # Carrega os dados
+        df_estoque = pd.read_sql(query_estoque, engine)
+        df_cat = pd.read_sql(query_categorias, engine)
+        
+        # Calcula o valor total geral (O que o chefe pediu)
+        valor_financeiro_total = df_estoque['total_custo'].sum() if not df_estoque.empty else 0.0
+        
+        # A MÁGICA PARA A VELOCIDADE: Convertendo os dados para listas em vez de gerar HTML pesado
+        lista_produtos = df_estoque.to_dict('records')
+        lista_categorias = df_cat.to_dict('records')
 
         return render_template('index.html', 
-                               tabela_html=tabela_html,
+                               produtos=lista_produtos,
+                               categorias_valores=lista_categorias,
                                total_produtos=total_produtos_cadastrados,
                                total_itens=total_itens_estoque,
-                               valor_total=f"{valor_financeiro_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")) # Formata para R$ BR
+                               valor_total=f"{valor_financeiro_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
 
     except Exception as e:
         return f"<h1>Erro ao carregar o banco de dados:</h1><p>{e}</p>"
