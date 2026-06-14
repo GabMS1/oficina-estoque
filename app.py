@@ -4,21 +4,18 @@ from sqlalchemy import create_engine, text
 
 app = Flask(__name__)
 
-# 1. Configurações de Conexão com o Banco
 USUARIO = 'app_user'
 SENHA = 'user_password_oficina'
 HOST = '127.0.0.1'
-PORTA = '3307'  # Verifique sua porta (3306 ou 3307)
+PORTA = '3307'
 BANCO = 'oficina_hidraulica'
 
 string_conexao = f"mysql+pymysql://{USUARIO}:{SENHA}@{HOST}:{PORTA}/{BANCO}?charset=utf8mb4"
 engine = create_engine(string_conexao)
 
-# ... (Suas importações e conexão com o banco continuam aqui em cima) ...
-
 @app.route('/')
 def mostrar_estoque():
-    # 1. Query principal do Estoque Atual (agora preparamos as colunas sem aspas para o HTML)
+    # Query principal atualizada para puxar o ENDEREÇO
     query_estoque = """
         SELECT 
             p.id AS cod,
@@ -27,15 +24,16 @@ def mostrar_estoque():
             p.nome AS produto,
             p.preco_custo AS custo,
             p.preco_venda AS venda,
+            CONCAT(end.setor, ' > ', end.estante, ' > ', end.gaveta) AS localizacao,
             COALESCE(e.quantidade_atual, 0) AS qtd_estoque,
             (COALESCE(e.quantidade_atual, 0) * p.preco_custo) AS total_custo
         FROM produtos p
         INNER JOIN categorias c ON p.categoria_id = c.id
         INNER JOIN marcas m ON p.marca_id = m.id
+        LEFT JOIN enderecos_estoque end ON p.endereco_id = end.id
         LEFT JOIN estoque_atual e ON p.id = e.produto_id;
     """
     
-    # 2. NOVA QUERY: Total financeiro agrupado por Categoria (O que o chefe pediu)
     query_categorias = """
         SELECT 
             c.nome AS categoria,
@@ -48,18 +46,14 @@ def mostrar_estoque():
     
     try:
         with engine.connect() as conn:
-            # Mantemos os totais gerais para os Cards principais
             total_produtos_cadastrados = conn.execute(text("SELECT COUNT(*) FROM produtos")).scalar() or 0
             total_itens_estoque = conn.execute(text("SELECT SUM(quantidade_atual) FROM estoque_atual")).scalar() or 0
         
-        # Carrega os dados
         df_estoque = pd.read_sql(query_estoque, engine)
         df_cat = pd.read_sql(query_categorias, engine)
         
-        # Calcula o valor total geral (O que o chefe pediu)
         valor_financeiro_total = df_estoque['total_custo'].sum() if not df_estoque.empty else 0.0
         
-        # A MÁGICA PARA A VELOCIDADE: Convertendo os dados para listas em vez de gerar HTML pesado
         lista_produtos = df_estoque.to_dict('records')
         lista_categorias = df_cat.to_dict('records')
 
@@ -73,7 +67,6 @@ def mostrar_estoque():
     except Exception as e:
         return f"<h1>Erro ao carregar o banco de dados:</h1><p>{e}</p>"
 
-# --- NOVA ROTA PARA A TELA DE MOVIMENTAÇÃO ---
 @app.route('/nova_movimentacao')
 def nova_movimentacao():
     return render_template('nova_movimentacao.html')
@@ -106,63 +99,66 @@ def movimentar_estoque():
 
     return redirect(url_for('mostrar_estoque'))
 
-# ... (seu código anterior continua lá em cima) ...
-
 @app.route('/novo_produto')
 def novo_produto():
-    # A tela agora não precisa mais carregar listas do banco, ela apenas abre o HTML limpo
     return render_template('novo_produto.html')
 
 @app.route('/salvar_produto', methods=['POST'])
 def salvar_produto():
     nome = request.form['nome']
-    # O .strip() remove espaços em branco que o usuário possa ter digitado sem querer no início ou fim
     categoria_nome = request.form['categoria_nome'].strip()
     marca_nome = request.form['marca_nome'].strip()
     preco_custo = request.form['preco_custo']
     preco_venda = request.form['preco_venda']
+    
+    # NOVOS CAMPOS DO ENDEREÇO
+    setor = request.form['setor'].strip()
+    estante = request.form['estante'].strip()
+    gaveta = request.form['gaveta'].strip()
 
     try:
         with engine.connect() as conn:
-            # --- 1. LÓGICA DA CATEGORIA (Buscar ou Criar) ---
+            # Busca ou Cria Categoria
             query_busca_cat = text("SELECT id FROM categorias WHERE nome = :nome")
             cat_id = conn.execute(query_busca_cat, {"nome": categoria_nome}).scalar()
-            
-            if not cat_id: # Se não achou, insere uma nova
-                query_insere_cat = text("INSERT INTO categorias (nome) VALUES (:nome)")
-                conn.execute(query_insere_cat, {"nome": categoria_nome})
+            if not cat_id:
+                conn.execute(text("INSERT INTO categorias (nome) VALUES (:nome)"), {"nome": categoria_nome})
                 cat_id = conn.execute(query_busca_cat, {"nome": categoria_nome}).scalar()
 
-            # --- 2. LÓGICA DA MARCA (Buscar ou Criar) ---
+            # Busca ou Cria Marca
             query_busca_marca = text("SELECT id FROM marcas WHERE nome = :nome")
             marca_id = conn.execute(query_busca_marca, {"nome": marca_nome}).scalar()
-            
-            if not marca_id: # Se não achou, insere uma nova
-                query_insere_marca = text("INSERT INTO marcas (nome) VALUES (:nome)")
-                conn.execute(query_insere_marca, {"nome": marca_nome})
+            if not marca_id:
+                conn.execute(text("INSERT INTO marcas (nome) VALUES (:nome)"), {"nome": marca_nome})
                 marca_id = conn.execute(query_busca_marca, {"nome": marca_nome}).scalar()
 
-            # --- 3. INSERIR O PRODUTO ---
-            # Agora já temos o cat_id e o marca_id garantidos
+            # BUSCA OU CRIA ENDEREÇO (A Mágica da Oficina)
+            query_busca_end = text("SELECT id FROM enderecos_estoque WHERE setor = :setor AND estante = :estante AND gaveta = :gaveta")
+            end_id = conn.execute(query_busca_end, {"setor": setor, "estante": estante, "gaveta": gaveta}).scalar()
+            if not end_id:
+                query_insere_end = text("INSERT INTO enderecos_estoque (setor, estante, gaveta) VALUES (:setor, :estante, :gaveta)")
+                conn.execute(query_insere_end, {"setor": setor, "estante": estante, "gaveta": gaveta})
+                end_id = conn.execute(query_busca_end, {"setor": setor, "estante": estante, "gaveta": gaveta}).scalar()
+
+            # Salva o Produto linkado com Categoria, Marca e Endereço
             query_produto = text("""
-                INSERT INTO produtos (nome, categoria_id, marca_id, preco_custo, preco_venda)
-                VALUES (:nome, :categoria_id, :marca_id, :preco_custo, :preco_venda)
+                INSERT INTO produtos (nome, categoria_id, marca_id, endereco_id, preco_custo, preco_venda)
+                VALUES (:nome, :categoria_id, :marca_id, :endereco_id, :preco_custo, :preco_venda)
             """)
             conn.execute(query_produto, {
                 "nome": nome,
                 "categoria_id": cat_id,
                 "marca_id": marca_id,
+                "endereco_id": end_id,
                 "preco_custo": preco_custo,
                 "preco_venda": preco_venda
             })
             
-            # Confirma as alterações no banco de uma vez só
             conn.commit()
 
     except Exception as e:
         print(f"Erro ao cadastrar produto: {e}")
 
-    # Volta para a tela inicial
     return redirect(url_for('mostrar_estoque'))
 
 if __name__ == '__main__':
