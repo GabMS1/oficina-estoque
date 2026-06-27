@@ -1,50 +1,56 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-br">
 <head>
-    <meta charset="utf-8">
-    <title>Movimentar Estoque</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nova Movimentação</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css', q=2) }}">
 </head>
 <body>
-    <div class="navbar">
-        <a href="/">Visão Geral</a>
-        <a href="/nova_movimentacao">Registrar Movimentação</a>
-        <a href="/novo_produto">Cadastrar Produto</a>
-    </div>
-
     <div class="container">
-        <h1>Registrar Entrada ou Saída</h1>
+        <h2>Registrar Nova Movimentação</h2>
         
-        <div class="form-container">
-            <form action="/movimentar" method="POST">
-                <div class="form-group" style="flex-direction: column; align-items: flex-start;">
-                    
-                    <label>Cód. do Produto:</label>
-                    <input type="number" name="produto_id" required style="width: 100%; margin-bottom: 10px;">
-                    
-                    <label>Tipo de Movimentação:</label>
-                    <select name="tipo" style="width: 100%; margin-bottom: 10px;">
-                        <option value="ENTRADA">Entrada (+)</option>
-                        <option value="SAIDA">Saída (-)</option>
-                    </select>
-                    
-                    <div style="display: flex; gap: 20px; width: 100%;">
-                        <div style="flex: 1;">
-                            <label>Quantidade:</label>
-                            <input type="number" name="quantidade" required style="width: 100%;">
-                        </div>
-                        <div style="flex: 1;">
-                            <label>Custo Unitário (R$):</label>
-                            <input type="number" step="0.01" name="valor_unitario" required style="width: 100%;">
-                        </div>
-                    </div>
-                    
-                    <label style="margin-top: 10px;">Motivo da Movimentação:</label>
-                    <input type="text" name="motivo" placeholder="Ex: Compra NF 123 ou Uso na Bomba Y" required style="width: 100%; margin-bottom: 20px;">
-                    
-                    <button type="submit" style="width: 100%;">Salvar Movimentação</button>
-                </div>
-            </form>
+        <form action="/movimentar" method="POST">
+            
+            <div class="form-group">
+                <label>Selecione a Peça:</label>
+                <select name="produto_id" required>
+                    <option value="">-- Escolha uma peça --</option>
+                    {% for p in produtos %}
+                        <option value="{{ p.id }}">{{ p.nome }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Tipo de Movimentação:</label>
+                <select name="tipo" required>
+                    <option value="ENTRADA">Entrada (Chegou peça)</option>
+                    <option value="SAIDA">Saída (Usou na oficina)</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>Quantidade:</label>
+                <input type="number" name="quantidade" required placeholder="Ex: 5">
+            </div>
+
+            <div class="form-group">
+                <label>Valor Unitário (R$):</label>
+                <input type="number" step="0.01" name="valor_unitario" placeholder="Ex: 12.50" value="0.00">
+            </div>
+
+            <div class="form-group">
+                <label>Motivo (OS / Veículo / Destino):</label>
+                <input type="text" name="motivo" required placeholder="Ex: Saiu 2 tintas para o caminhão da água">
+            </div>
+
+            <button type="submit" class="btn-submit">Confirmar Movimentação</button>
+        </form>
+        
+        <br>
+        <div style="text-align: center;">
+            <a href="/" class="btn-submit" style="background-color: #666; text-decoration: none; display: inline-block; width: 100%; box-sizing: border-box;">Voltar para o Estoque</a>
         </div>
     </div>
 </body>
