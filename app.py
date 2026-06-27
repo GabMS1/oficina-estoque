@@ -1,107 +1,38 @@
 from flask import Flask, request, redirect, url_for, render_template
-import pandas as pd
 from sqlalchemy import create_engine, text
+import pandas as pd
 
 app = Flask(__name__)
-
-USUARIO = 'app_user'
-SENHA = 'user_password_oficina'
-HOST = '127.0.0.1'
-PORTA = '3307'
-BANCO = 'oficina_hidraulica'
-
-string_conexao = f"mysql+pymysql://{USUARIO}:{SENHA}@{HOST}:{PORTA}/{BANCO}?charset=utf8mb4"
-engine = create_engine(string_conexao)
+engine = create_engine("mysql+pymysql://app_user:user_password_oficina@127.0.0.1:3307/oficina_hidraulica")
 
 @app.route('/')
 def mostrar_estoque():
-    # Query principal atualizada para puxar o ENDEREÇO
-    query_estoque = """
-        SELECT 
-            p.id AS cod,
-            c.nome AS categoria,
-            m.nome AS marca,
-            p.nome AS produto,
-            p.preco_custo AS custo,
-            p.preco_venda AS venda,
-            CONCAT(end.setor, ' > ', end.estante, ' > ', end.gaveta) AS localizacao,
-            COALESCE(e.quantidade_atual, 0) AS qtd_estoque,
-            (COALESCE(e.quantidade_atual, 0) * p.preco_custo) AS total_custo
+    query = """
+        SELECT p.id, p.nome, c.nome as categoria, m.nome as marca, 
+               CONCAT(e.setor, ' > ', e.estante, ' > ', e.gaveta) as local,
+               COALESCE(ea.quantidade_atual, 0) as qtd
         FROM produtos p
-        INNER JOIN categorias c ON p.categoria_id = c.id
-        INNER JOIN marcas m ON p.marca_id = m.id
-        LEFT JOIN enderecos_estoque end ON p.endereco_id = end.id
-        LEFT JOIN estoque_atual e ON p.id = e.produto_id;
+        JOIN categorias c ON p.categoria_id = c.id
+        JOIN marcas m ON p.marca_id = m.id
+        LEFT JOIN enderecos_estoque e ON p.endereco_id = e.id
+        LEFT JOIN estoque_atual ea ON p.id = ea.produto_id
     """
-    
-    query_categorias = """
-        SELECT 
-            c.nome AS categoria,
-            SUM(COALESCE(e.quantidade_atual, 0) * p.preco_custo) AS total_custo
-        FROM produtos p
-        INNER JOIN categorias c ON p.categoria_id = c.id
-        LEFT JOIN estoque_atual e ON p.id = e.produto_id
-        GROUP BY c.nome;
-    """
-    
-    try:
-        with engine.connect() as conn:
-            total_produtos_cadastrados = conn.execute(text("SELECT COUNT(*) FROM produtos")).scalar() or 0
-            total_itens_estoque = conn.execute(text("SELECT SUM(quantidade_atual) FROM estoque_atual")).scalar() or 0
-        
-        df_estoque = pd.read_sql(query_estoque, engine)
-        df_cat = pd.read_sql(query_categorias, engine)
-        
-        valor_financeiro_total = df_estoque['total_custo'].sum() if not df_estoque.empty else 0.0
-        
-        lista_produtos = df_estoque.to_dict('records')
-        lista_categorias = df_cat.to_dict('records')
-
-        return render_template('index.html', 
-                               produtos=lista_produtos,
-                               categorias_valores=lista_categorias,
-                               total_produtos=total_produtos_cadastrados,
-                               total_itens=total_itens_estoque,
-                               valor_total=f"{valor_financeiro_total:,.2f}".replace(",", "X").replace(".", ",").replace("X", "."))
-
-    except Exception as e:
-        return f"<h1>Erro ao carregar o banco de dados:</h1><p>{e}</p>"
-
-@app.route('/nova_movimentacao')
-def nova_movimentacao():
-    return render_template('nova_movimentacao.html')
+    produtos = pd.read_sql(query, engine).to_dict('records')
+    return render_template('index.html', produtos=produtos)
 
 @app.route('/movimentar', methods=['POST'])
-def movimentar_estoque():
-    produto_id = request.form['produto_id']
+def movimentar():
+    p_id = request.form['produto_id']
     tipo = request.form['tipo']
-    quantidade = request.form['quantidade']
-    valor_unitario = request.form['valor_unitario']
-    motivo = request.form['motivo']
-
-    query = text("""
-        INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade, valor_unitario, motivo)
-        VALUES (:produto_id, :tipo, :quantidade, :valor_unitario, :motivo)
-    """)
-
-    try:
-        with engine.connect() as conn:
-            conn.execute(query, {
-                "produto_id": produto_id,
-                "tipo": tipo,
-                "quantidade": quantidade,
-                "valor_unitario": valor_unitario,
-                "motivo": motivo
-            })
-            conn.commit()
-    except Exception as e:
-        print(f"Erro ao inserir: {e}")
-
+    qtd = int(request.form['quantidade'])
+    
+    with engine.connect() as conn:
+        conn.execute(text("INSERT INTO movimentacoes_estoque (produto_id, tipo, quantidade) VALUES (:p, :t, :q)"), {"p": p_id, "t": tipo, "q": qtd})
+        
+        valor = qtd if tipo == 'entrada' else -qtd
+        conn.execute(text("INSERT INTO estoque_atual (produto_id, quantidade_atual) VALUES (:p, :q) ON DUPLICATE KEY UPDATE quantidade_atual = quantidade_atual + :q"), {"p": p_id, "q": valor})
+        conn.commit()
     return redirect(url_for('mostrar_estoque'))
-
-@app.route('/novo_produto')
-def novo_produto():
-    return render_template('novo_produto.html')
 
 @app.route('/salvar_produto', methods=['POST'])
 def salvar_produto():
